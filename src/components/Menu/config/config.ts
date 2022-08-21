@@ -35,39 +35,6 @@ const config: (
 ) => ConfigMenuItemsType[] = (t, isDark, languageCode, chainId) =>
   [
     {
-      label: t('Trade'),
-      icon: SwapIcon,
-      fillIcon: SwapFillIcon,
-      href: '/swap',
-      showItemsOnMobile: false,
-      items: [
-        {
-          label: t('Swap'),
-          href: '/swap',
-        },
-        {
-          label: t('Limit'),
-          href: '/limit-orders',
-          supportChainIds: [ChainId.BSC],
-        },
-        {
-          label: t('Liquidity'),
-          href: '/liquidity',
-        },
-        {
-          label: t('Perpetual'),
-          href: `https://perp.pancakeswap.finance/${perpLangMap(languageCode)}/futures/BTCUSDT?theme=${perpTheme(
-            isDark,
-          )}`,
-          type: DropdownMenuItemType.EXTERNAL_LINK,
-        },
-        // {
-        //   label: t('Transfer'),
-        //   href: '/transfer',
-        // },
-      ].filter((item) => filterItemBySupportChainId(item, chainId)),
-    },
-    {
       label: t('Earn'),
       href: '/farms',
       icon: EarnIcon,

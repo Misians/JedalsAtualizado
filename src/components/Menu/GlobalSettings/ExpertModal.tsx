@@ -1,73 +1,188 @@
 import { useState } from 'react'
-import { Button, Text, Flex, Message, Modal, InjectedModalProps, Checkbox } from '@pancakeswap/uikit'
-import { useExpertModeManager } from 'state/user/hooks'
+import styled from 'styled-components'
+import { Text, PancakeToggle, Toggle, Flex, Modal, InjectedModalProps, ThemeSwitcher, Box } from '@pancakeswap/uikit'
+import {
+  useAudioModeManager,
+  useExpertModeManager,
+  useSubgraphHealthIndicatorManager,
+  useUserExpertModeAcknowledgementShow,
+  useUserSingleHopOnly,
+  useZapModeManager,
+} from 'state/user/hooks'
+import { useSwapActionHandlers } from 'state/swap/useSwapActionHandlers'
 import { useTranslation } from 'contexts/Localization'
+import useTheme from 'hooks/useTheme'
+import QuestionHelper from '../../QuestionHelper'
+import TransactionSettings from './TransactionSettings'
+import ExpertModal from './ExpertModal'
+import GasSettings from './GasSettings'
+import { SettingsMode } from './types'
 
-interface ExpertModalProps extends InjectedModalProps {
-  setShowConfirmExpertModal: (boolean) => void
-  setShowExpertModeAcknowledgement: (boolean) => void
-}
+const ScrollableContainer = styled(Flex)`
+  flex-direction: column;
+  ${({ theme }) => theme.mediaQueries.xs} {
+    max-height: none;
+    height: 90vh;
+  }
+  ${({ theme }) => theme.mediaQueries.md} {
+    max-height: none;
+    height: auto;
+  }
+`
 
-const ExpertModal: React.FC<ExpertModalProps> = ({ setShowConfirmExpertModal, setShowExpertModeAcknowledgement }) => {
-  const [, toggleExpertMode] = useExpertModeManager()
-  const [isRememberChecked, setIsRememberChecked] = useState(false)
+const SettingsModal: React.FC<InjectedModalProps> = ({ onDismiss, mode }) => {
+  const [showConfirmExpertModal, setShowConfirmExpertModal] = useState(false)
+  const [showExpertModeAcknowledgement, setShowExpertModeAcknowledgement] = useUserExpertModeAcknowledgementShow()
+  const [expertMode, toggleExpertMode] = useExpertModeManager()
+  const [singleHopOnly, setSingleHopOnly] = useUserSingleHopOnly()
+  const [audioPlay, toggleSetAudioMode] = useAudioModeManager()
+  const [zapMode, toggleZapMode] = useZapModeManager()
+  const [subgraphHealth, setSubgraphHealth] = useSubgraphHealthIndicatorManager()
+  const { onChangeRecipient } = useSwapActionHandlers()
 
   const { t } = useTranslation()
+  const { isDark, setTheme } = useTheme()
+
+  if (showConfirmExpertModal) {
+    return (
+      <ExpertModal
+        setShowConfirmExpertModal={setShowConfirmExpertModal}
+        onDismiss={onDismiss}
+        setShowExpertModeAcknowledgement={setShowExpertModeAcknowledgement}
+      />
+    )
+  }
+
+  const handleExpertModeToggle = () => {
+    if (expertMode) {
+      onChangeRecipient(null)
+      toggleExpertMode()
+    } else if (!showExpertModeAcknowledgement) {
+      onChangeRecipient(null)
+      toggleExpertMode()
+    } else {
+      setShowConfirmExpertModal(true)
+    }
+  }
 
   return (
     <Modal
-      title={t('Expert Mode')}
-      onBack={() => setShowConfirmExpertModal(false)}
-      onDismiss={() => setShowConfirmExpertModal(false)}
+      title={t('Settings')}
       headerBackground="gradients.cardHeader"
-      style={{ maxWidth: '360px' }}
+      onDismiss={onDismiss}
+      style={{ maxWidth: '420px' }}
     >
-      <Message variant="warning" mb="24px">
-        <Text>
-          {t(
-            "Expert mode turns off the 'Confirm' transaction prompt, and allows high slippage trades that often result in bad rates and lost funds.",
-          )}
-        </Text>
-      </Message>
-      <Text mb="24px">{t('Only use this mode if you know what you’re doing.')}</Text>
-      <Flex alignItems="center" mb="24px">
-        <Checkbox
-          name="confirmed"
-          type="checkbox"
-          checked={isRememberChecked}
-          onChange={() => setIsRememberChecked(!isRememberChecked)}
-          scale="sm"
-        />
-        <Text ml="10px" color="textSubtle" style={{ userSelect: 'none' }}>
-          {t('Don’t show this again')}
-        </Text>
-      </Flex>
-      <Button
-        mb="8px"
-        id="confirm-expert-mode"
-        onClick={() => {
-          // eslint-disable-next-line no-alert
-          if (window.prompt(`Please type the word "confirm" to enable expert mode.`) === 'confirm') {
-            toggleExpertMode()
-            setShowConfirmExpertModal(false)
-            if (isRememberChecked) {
-              setShowExpertModeAcknowledgement(false)
-            }
-          }
-        }}
-      >
-        {t('Turn On Expert Mode')}
-      </Button>
-      <Button
-        variant="secondary"
-        onClick={() => {
-          setShowConfirmExpertModal(false)
-        }}
-      >
-        {t('Cancel')}
-      </Button>
+      <ScrollableContainer>
+        {mode === SettingsMode.GLOBAL && (
+          <>
+            <Flex pb="24px" flexDirection="column">
+              <Text bold textTransform="uppercase" fontSize="18px" color="secondary" mb="24px">
+                {t('Global')}
+              </Text>
+              <Flex justifyContent="space-between" mb="24px">
+                <Text>{t('Dark mode')}</Text>
+                <ThemeSwitcher isDark={isDark} toggleTheme={() => setTheme(isDark ? 'light' : 'dark')} />
+              </Flex>
+              <Flex justifyContent="space-between" alignItems="center" mb="24px">
+                <Flex alignItems="center">
+                  <Text>{t('Subgraph Health Indicator')}</Text>
+                  <QuestionHelper
+                    text={t(
+                      'Turn on NFT market subgraph health indicator all the time. Default is to show the indicator only when the network is delayed',
+                    )}
+                    placement="top-start"
+                    ml="4px"
+                  />
+                </Flex>
+                <Toggle
+                  id="toggle-subgraph-health-button"
+                  checked={subgraphHealth}
+                  scale="md"
+                  onChange={() => {
+                    setSubgraphHealth(!subgraphHealth)
+                  }}
+                />
+              </Flex>
+              <GasSettings />
+            </Flex>
+          </>
+        )}
+        {mode === SettingsMode.SWAP_LIQUIDITY && (
+          <>
+            <Flex pt="3px" flexDirection="column">
+              <Text bold textTransform="uppercase" fontSize="18px" color="secondary" mb="24px">
+                {t('Swaps & Liquidity')}
+              </Text>
+              <Flex justifyContent="space-between" alignItems="center" mb="24px">
+                <GasSettings />
+              </Flex>
+              <TransactionSettings />
+            </Flex>
+            <Flex justifyContent="space-between" alignItems="center" mb="24px">
+              <Flex alignItems="center">
+                <Text>{t('Zap (Beta)')}</Text>
+                <QuestionHelper
+                  text={
+                    <Box>
+                      <Text>
+                        {t(
+                          'Zap enables simple liquidity provision. Add liquidity with one token and one click, without manual swapping or token balancing.',
+                        )}
+                      </Text>
+                      <Text>
+                        {t(
+                          'If you experience any issue when adding or removing liquidity, please disable Zap and retry.',
+                        )}
+                      </Text>
+                    </Box>
+                  }
+                  placement="top-start"
+                  ml="4px"
+                />
+              </Flex>
+              <Toggle
+                checked={zapMode}
+                scale="md"
+                onChange={() => {
+                  toggleZapMode(!zapMode)
+                }}
+              />
+            </Flex>
+            <Flex justifyContent="space-between" alignItems="center" mb="24px">
+              <Flex alignItems="center">
+                <Text>{t('Expert Mode')}</Text>
+                <QuestionHelper
+                  text={t('Bypasses confirmation modals and allows high slippage trades. Use at your own risk.')}
+                  placement="top-start"
+                  ml="4px"
+                />
+              </Flex>
+              <Toggle
+                id="toggle-expert-mode-button"
+                scale="md"
+                checked={expertMode}
+                onChange={handleExpertModeToggle}
+              />
+            </Flex>
+            <Flex justifyContent="space-between" alignItems="center" mb="24px">
+              <Flex alignItems="center">
+                <Text>{t('Disable Multihops')}</Text>
+                <QuestionHelper text={t('Restricts swaps to direct pairs only.')} placement="top-start" ml="4px" />
+              </Flex>
+              <Toggle
+                id="toggle-disable-multihop-button"
+                checked={singleHopOnly}
+                scale="md"
+                onChange={() => {
+                  setSingleHopOnly(!singleHopOnly)
+                }}
+              />
+            </Flex>
+          </>
+        )}
+      </ScrollableContainer>
     </Modal>
   )
 }
 
-export default ExpertModal
+export default SettingsModal
